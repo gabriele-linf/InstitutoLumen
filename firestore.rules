@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isStaff() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'staff';
+    }
+
+    function isValidUser() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['uid', 'name', 'email', 'role', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.role in ['student', 'staff'] &&
+             data.createdAt is string;
+    }
+
+    function isValidRequest() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['id', 'studentId', 'studentName', 'title', 'description', 'status', 'createdAt', 'updatedAt']) &&
+             data.studentId == request.auth.uid &&
+             data.studentName is string && data.studentName.size() > 0 && data.studentName.size() < 100 &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 5000 &&
+             data.status in ['pending', 'in-analysis', 'completed'] &&
+             data.createdAt is string &&
+             data.updatedAt is string &&
+             (!('attachmentUrl' in data) || (data.attachmentUrl is string && data.attachmentUrl.size() < 1000)) &&
+             (!('attachmentName' in data) || (data.attachmentName is string && data.attachmentName.size() < 200)) &&
+             (!('staffReply' in data) || (data.staffReply is string && data.staffReply.size() < 5000)) &&
+             (!('staffAttachmentUrl' in data) || (data.staffAttachmentUrl is string && data.staffAttachmentUrl.size() < 1000)) &&
+             (!('staffAttachmentName' in data) || (data.staffAttachmentName is string && data.staffAttachmentName.size() < 200));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isStaff();
+      // Allow users to create their own profile. We can't strictly prevent them from claiming 'staff' 
+      // during initial signup without a backend, but we enforce they can only create their own UID.
+      allow create: if isOwner(userId) && isValidUser();
+      allow update: if isOwner(userId) && isValidUser() && request.resource.data.role == resource.data.role;
+      allow delete: if false;
+    }
+
+    match /requests/{requestId} {
+      allow read: if isOwner(resource.data.studentId) || isStaff();
+      allow create: if isAuthenticated() && isValidRequest();
+      allow update: if isStaff() && 
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'staffReply', 'staffAttachmentUrl', 'staffAttachmentName']) &&
+                       request.resource.data.status in ['pending', 'in-analysis', 'completed'];
+      allow delete: if isOwner(resource.data.studentId) && resource.data.status == 'pending';
+    }
+  }
+}

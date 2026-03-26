@@ -1,0 +1,48 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["student", "staff"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "name", "email", "role", "createdAt"]
+    },
+    "AcademicRequest": {
+      "title": "AcademicRequest",
+      "description": "An academic request made by a student",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "in-analysis", "completed"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "attachmentUrl": { "type": "string" },
+        "attachmentName": { "type": "string" },
+        "staffReply": { "type": "string" },
+        "staffAttachmentUrl": { "type": "string" },
+        "staffAttachmentName": { "type": "string" }
+      },
+      "required": ["id", "studentId", "studentName", "title", "description", "status", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Stores user profiles"
+    },
+    "/requests/{requestId}": {
+      "schema": { "$ref": "#/entities/AcademicRequest" },
+      "description": "Stores academic requests"
+    }
+  }
+}
